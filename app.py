@@ -123,7 +123,7 @@ with st.sidebar:
         st.caption(log)
 
 # --- 5. MAIN HUD ---
-st.title("⚔️ AI Multiplayer RPG")
+st.title("⚔️ Rudy's RPG")
 h1, h2 = st.columns(2)
 with h1:
     if game_state["monster_active"]:
