@@ -53,8 +53,6 @@ def ask_dm():
         response = completion.choices[0].message.content
         
         # --- PARSE SYSTEM TAGS ---
-        
-        # 1. Monster Spawn
         if not game_state["monster_active"]:
             m_match = re.search(r"\[MONSTER:\s*(.*?),\s*HP:\s*(\d+)\]", response)
             if m_match:
@@ -63,12 +61,10 @@ def ask_dm():
                 game_state["monster_active"] = True
                 game_state["battle_log"].insert(0, f"⚠️ A {game_state['monster_name']} appeared!")
 
-        # 2. Monster Damage
         mh_match = re.search(r"\[MONSTER_HP:\s*([+-]?\d+)\]", response)
         if mh_match and game_state["monster_active"]:
             game_state["monster_hp"] = max(0, game_state["monster_hp"] + int(mh_match.group(1)))
 
-        # 3. Player HP
         ph_match = re.search(r"\[HP_CHANGE:\s*(.*?),\s*([+-]?\d+)\]", response)
         if ph_match:
             target_raw, val = ph_match.group(1).strip(), int(ph_match.group(2))
@@ -76,7 +72,6 @@ def ask_dm():
                 if target_raw.lower() == actual_name.lower():
                     game_state["party_hp"][actual_name] = max(0, min(10, game_state["party_hp"][actual_name] + val))
 
-        # 4. Gold (Robust Matching)
         gold_match = re.search(r"\[GOLD:\s*(.*?),\s*([+-]?\d+)\]", response)
         if gold_match:
             target_raw, val = gold_match.group(1).strip(), int(gold_match.group(2))
@@ -85,7 +80,6 @@ def ask_dm():
                     game_state["party_gold"][actual_name] = max(0, game_state["party_gold"][actual_name] + val)
                     game_state["battle_log"].insert(0, f"💰 {actual_name} gained {val} gold!")
 
-        # 5. Items
         item_match = re.search(r"\[ITEM:\s*(.*?),\s*(.*?)\]", response)
         if item_match:
             target_raw, item = item_match.group(1).strip(), item_match.group(2).strip()
@@ -106,10 +100,11 @@ with st.sidebar:
     name_input = st.text_input("Name:", value=st.session_state.my_name)
     if name_input and name_input != st.session_state.my_name:
         st.session_state.my_name = name_input
+        # Initialize with EMPTY inventory
         if name_input not in game_state["party_hp"]:
             game_state["party_hp"][name_input] = 10
             game_state["party_gold"][name_input] = 0
-            game_state["party_inventory"][name_input] = ["Rusty Dagger"]
+            game_state["party_inventory"][name_input] = [] # Empty Backpack
         st.rerun()
 
     if st.session_state.my_name in game_state["party_hp"]:
@@ -124,8 +119,13 @@ with st.sidebar:
                 st.rerun()
         
         st.write("🎒 **Inventory**")
-        for item in game_state["party_inventory"].get(curr_name, []):
-            st.caption(f"• {item}")
+        # Added a button to discard items if you want them to be non-permanent
+        for i, item in enumerate(game_state["party_inventory"].get(curr_name, [])):
+            col_item, col_btn = st.columns([4, 1])
+            col_item.caption(f"• {item}")
+            if col_btn.button("🗑️", key=f"del_{i}"):
+                game_state["party_inventory"][curr_name].pop(i)
+                st.rerun()
     
     st.divider()
     st.subheader("📜 Battle Log")
@@ -133,7 +133,17 @@ with st.sidebar:
         st.caption(log)
 
     if st.button("🔥 Reset World"):
-        game_state.update({"monster_active": False, "monster_name": None, "monster_hp": 0, "max_monster_hp": 0, "party_hp": {}, "party_gold": {}, "party_inventory": {}, "battle_log": ["World Reset."], "history": [{"role": "assistant", "name": "DM", "content": "The world resets..."}]})
+        game_state.update({
+            "monster_active": False, 
+            "monster_name": None, 
+            "monster_hp": 0, 
+            "max_monster_hp": 0, 
+            "party_hp": {}, 
+            "party_gold": {}, 
+            "party_inventory": {}, # Resets everyone to empty backpacks
+            "battle_log": ["World Reset."], 
+            "history": [{"role": "assistant", "name": "DM", "content": "The world resets..."}]
+        })
         st.rerun()
 
 # --- 5. MAIN HUD ---
@@ -150,7 +160,7 @@ with h1:
             st.success(f"✨ {game_state['monster_name']} Defeated!")
             if st.button("Loot & Continue"): 
                 killer = st.session_state.my_name if st.session_state.my_name else "The party"
-                game_state["history"].append({"role": "user", "name": "SYSTEM", "content": f"{killer} killed the monster. DM, describe the loot and use [GOLD: Name, +Amount] tags."})
+                game_state["history"].append({"role": "user", "name": "SYSTEM", "content": f"{killer} killed the monster. DM, describe the loot and use [GOLD: Name, +Amount] or [ITEM: Name, ItemName] tags."})
                 game_state["monster_active"] = False
                 game_state["monster_name"] = None 
                 game_state["monster_hp"] = 0
