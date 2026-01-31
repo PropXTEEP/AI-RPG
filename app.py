@@ -137,7 +137,7 @@ with st.sidebar:
         st.rerun()
 
 # --- 5. MAIN HUD ---
-st.title("⚔️ AI Multiplayer RPG")
+st.title("⚔️ Rudy's RPG")
 
 h1, h2 = st.columns(2)
 with h1:
